@@ -75,7 +75,7 @@ html, body {
 .legal-links a { color: var(--ink-2); text-underline-offset: 2px; }
 
 .app-logo     { font-size: 3rem; }
-.app-title    { font-size: 2.4rem; font-weight: 900; color: var(--brand-600); letter-spacing: -.02em; line-height: 1.1; }
+.app-title    { font-size: clamp(1.7rem, 6vw, 2.4rem); font-weight: 900; color: var(--brand-600); letter-spacing: -.02em; line-height: 1.1; white-space: nowrap; }
 .app-subtitle { color: var(--ink-2); font-size: .8rem; }
 
 .highscore-box {
