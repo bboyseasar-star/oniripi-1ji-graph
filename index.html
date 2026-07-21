@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>👹 1次関数のグラフマスター</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Outfit:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['\\(', '\\)']] },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] },
+      startup: { typeset: false }
+    };
+  </script>
+  <script id="MathJax-script" async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <link rel="stylesheet" href="style.css?v=20260616-2">
+</head>
+<body>
+
+  <!-- ══════════════ スタート画面 ══════════════ -->
+  <div id="screen-start" class="screen active">
+    <div class="start-card">
+      <div class="app-logo emoji-icon">👹</div>
+      <h1 class="app-title">1次関数のグラフマスター</h1>
+      <p class="app-subtitle">グラフを自在にかこう</p>
+
+      <div class="highscore-box">
+        <span>👑 最高スコア</span>
+        <strong id="high-score">--</strong>
+        <span>点</span>
+      </div>
+
+      <div class="history-box">
+        <div class="history-header">
+          <span>📋 学習履歴</span>
+          <button id="reset-btn" class="btn-ghost-sm">リセット</button>
+        </div>
+        <div id="history-list" class="history-list">
+          <p class="no-history">まだ記録がないよ！</p>
+        </div>
+      </div>
+
+      <button id="start-btn" class="btn-primary lg">▶ スタート！</button>
+
+      <p class="legal-links"><a href="NOTICE.md" target="_blank" rel="noopener">利用条件・出典・プライバシー</a>　<a href="LICENSE" target="_blank" rel="noopener">LICENSE</a></p>
+    </div>
+  </div>
+
+  <!-- ══════════════ クイズ画面 ══════════════ -->
+  <div id="screen-quiz" class="screen">
+
+    <header class="quiz-header">
+      <div class="header-brand"><span class="emoji-icon">👹</span> 1次関数のグラフマスター</div>
+      <div class="header-progress">
+        <span id="q-counter">Q 1 / 5</span>
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill" style="width:0%"></div>
+        </div>
+      </div>
+      <div id="score-display" class="header-score">0点</div>
+    </header>
+
+    <main class="quiz-main">
+
+      <!-- 左パネル -->
+      <section class="left-panel">
+        <div class="question-card">
+          <p class="question-label">次の1次関数のグラフをかきなさい</p>
+          <div id="equation-display" class="equation-display"></div>
+        </div>
+
+        <div class="instruction-card">
+          <p>🔵🟣 2つの点をドラッグして<br>グラフを合わせよう！</p>
+          <div id="current-line-info" class="line-info"></div>
+        </div>
+
+        <div id="feedback-box" class="feedback-box hidden"></div>
+
+        <div class="hint-area">
+          <div class="hint-controls">
+            <button id="hint-btn" class="btn-hint">💡 ヒント</button>
+            <button id="submit-btn" class="btn-primary">✅ 決定！</button>
+            <button id="next-btn" class="btn-secondary hidden">次へ →</button>
+          </div>
+          <div id="hint-text" class="hint-text hidden"></div>
+        </div>
+      </section>
+
+      <!-- キャンバスパネル -->
+      <section class="right-panel">
+        <canvas id="graph-canvas" width="480" height="480"></canvas>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ══════════════ 結果画面 ══════════════ -->
+  <div id="screen-result" class="screen">
+    <div class="result-card">
+      <div class="result-header">
+        <h2>結果発表！</h2>
+        <div id="result-score" class="result-score"></div>
+        <div id="result-badge" class="result-badge"></div>
+      </div>
+
+      <div class="review-section">
+        <h3>振り返り</h3>
+        <div id="review-list" class="review-list"></div>
+      </div>
+
+      <div class="result-actions">
+        <button id="retry-btn" class="btn-primary">🔁 もう一度！</button>
+        <button id="home-btn"  class="btn-secondary">🏠 ホームへ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 確認モーダル（画面中央） -->
+  <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card" id="modal-card">
+      <div class="modal-icon" id="modal-icon">⚠️</div>
+      <h2 class="modal-title" id="modal-title">確認</h2>
+      <p class="modal-message" id="modal-message"></p>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="modal-btn modal-btn--cancel">キャンセル</button>
+        <button id="modal-ok" class="modal-btn modal-btn--ok">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script src="questions.js?v=20260616-2"></script>
+  <script src="main.js?v=20260616-2"></script>
+</body>
+</html>
