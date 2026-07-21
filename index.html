@@ -15,7 +15,7 @@
   </script>
   <script id="MathJax-script" async
     src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-  <link rel="stylesheet" href="style.css?v=20260616-2">
+  <link rel="stylesheet" href="style.css?v=20260721-3">
 </head>
 <body>
 
@@ -52,7 +52,7 @@
   <div id="screen-quiz" class="screen">
 
     <header class="quiz-header">
-      <div class="header-brand"><span class="emoji-icon">👹</span> 1次関数のグラフマスター</div>
+      <div class="header-brand"><span class="emoji-icon">👹</span> 1次関数のグラフマスター<span id="review-badge" class="review-badge hidden"></span></div>
       <div class="header-progress">
         <span id="q-counter">Q 1 / 5</span>
         <div class="progress-bar">
@@ -101,9 +101,10 @@
   <div id="screen-result" class="screen">
     <div class="result-card">
       <div class="result-header">
-        <h2>結果発表！</h2>
+        <h2 id="result-title">結果発表！</h2>
         <div id="result-score" class="result-score"></div>
         <div id="result-badge" class="result-badge"></div>
+        <p id="result-note" class="result-note hidden"></p>
       </div>
 
       <div class="review-section">
@@ -112,7 +113,8 @@
       </div>
 
       <div class="result-actions">
-        <button id="retry-btn" class="btn-primary">🔁 もう一度！</button>
+        <button id="review-btn" class="btn-primary hidden">🔁 まちがえた問題をやり直す</button>
+        <button id="retry-btn" class="btn-secondary">✨ 新しい問題に挑戦</button>
         <button id="home-btn"  class="btn-secondary">🏠 ホームへ</button>
       </div>
     </div>
@@ -132,7 +134,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-  <script src="questions.js?v=20260616-2"></script>
-  <script src="main.js?v=20260616-2"></script>
+  <script src="questions.js?v=20260721-3"></script>
+  <script src="main.js?v=20260721-3"></script>
 </body>
 </html>

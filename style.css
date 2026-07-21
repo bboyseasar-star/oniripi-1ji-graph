@@ -111,7 +111,7 @@ html, body {
   background: var(--surface); box-shadow: var(--sh-1); z-index: 2;
   display: flex; align-items: center; padding: 0 var(--sp-5); gap: var(--sp-4);
 }
-.header-brand { font-weight: 900; font-size: 1.05rem; color: var(--brand-600); min-width: 78px; }
+.header-brand { font-weight: 900; font-size: 1.05rem; color: var(--brand-600); min-width: 78px; white-space: nowrap; flex-shrink: 0; }
 .header-progress { flex: 1; display: flex; align-items: center; gap: var(--sp-3); }
 #q-counter { font-size: .88rem; font-weight: 700; white-space: nowrap; color: var(--ink-2); }
 .progress-bar { flex: 1; height: 9px; background: var(--line); border-radius: var(--r-pill); overflow: hidden; }
@@ -253,7 +253,23 @@ html, body {
 .review-item.ok .rv-mark { color: var(--ok); }
 .review-item.ng .rv-mark { color: var(--ng); }
 
-.result-actions { display: flex; gap: var(--sp-3); }
+.result-note { font-size: .72rem; color: var(--ink-2); margin-top: var(--sp-2); }
+.result-note.hidden { display: none; }
+
+/* 復習ボタンは主導線なので単独の行で大きく見せ、残り2つを下段に並べる */
+.result-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.result-actions #review-btn { flex: 1 0 100%; }
+.result-actions button { font-size: .95rem; padding: var(--sp-3) var(--sp-3); }
+
+/* クイズ画面の「復習中」バッジ */
+.review-badge {
+  display: inline-block; margin-left: var(--sp-2);
+  background: var(--warn-bg, #fff7e6); color: var(--warn, #b45309);
+  border: 1.5px solid var(--warn-line, #fcd34d); border-radius: var(--r-pill, 999px);
+  padding: 2px 10px; font-size: .68rem; font-weight: 800; vertical-align: middle;
+  white-space: nowrap;
+}
+.review-badge.hidden { display: none; }
 
 /* ════════════ ボタン ════════════ */
 .btn-primary {

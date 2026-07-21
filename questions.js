@@ -89,5 +89,24 @@ function generateSession(count = 5) {
   }
 
   return shuffled(selected.slice(0, count))
-    .map((q, i) => ({ ...q, sessionId: i }));
+    .map((q, i) => ({ ...q, id: questionId(q), sessionId: i }));
+}
+
+// 問題の一意なID。復習モードでの重複防止に使う（値ベースなので出題順に依存しない）
+function questionId(q) {
+  return `q_${q.slope}_${q.intercept}`;
+}
+
+// 間違えた問題（不正解＋ギブアップ）だけを抽出する。IDで重複を除く。
+function buildReviewSet(answers) {
+  const seen = new Set();
+  const out  = [];
+  for (const a of (answers || [])) {
+    if (!a || a.correct || !a.q) continue;
+    const id = a.q.id || questionId(a.q);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({ slope: a.q.slope, intercept: a.q.intercept, id });
+  }
+  return out.map((q, i) => ({ ...q, sessionId: i }));
 }

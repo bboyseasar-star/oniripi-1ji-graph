@@ -22,6 +22,8 @@ const S = {
   hintLevel:    0,      // 0〜3
   highScore:    0,
   history:      [],
+  reviewMode:   false,  // 復習（間違えた問題だけ）セッション中か
+  reviewRound:  0,      // 復習の回数（1回目・2回目…）
 };
 
 const LS_HIST = 'oniripi_graph_history';
@@ -335,10 +337,39 @@ function renderStart() {
 
 // ─── クイズ ───────────────────────────────────────────────────────
 async function startQuiz() {
+  S.reviewMode  = false;
+  S.reviewRound = 0;
   S.questions = generateSession(5);
   S.idx = 0; S.score = 0; S.answers = [];
+  updateReviewBadge();
   showScreen('screen-quiz');
   await loadQ();
+}
+
+// 復習セッション: 直前のセッションで間違えた問題だけを、同じ流れで出題する
+async function startReview() {
+  const set = buildReviewSet(S.answers);
+  if (set.length === 0) { await startQuiz(); return; }
+  S.reviewRound = (S.reviewMode ? S.reviewRound : 0) + 1;
+  S.reviewMode  = true;
+  S.questions = set;
+  S.idx = 0; S.score = 0; S.answers = [];
+  updateReviewBadge();
+  showScreen('screen-quiz');
+  await loadQ();
+}
+
+// クイズ画面に「復習中」だと分かるバッジを出す
+function updateReviewBadge() {
+  const el = $('review-badge');
+  if (!el) return;
+  if (S.reviewMode) {
+    el.textContent = `🔁 まちがい直し ${S.reviewRound}回目`;
+    el.classList.remove('hidden');
+  } else {
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
 }
 
 async function loadQ() {
@@ -553,14 +584,24 @@ async function showResult() {
   const max     = S.questions.length * 20;
   const cleared = S.score >= max * 0.8;
 
-  const now  = new Date();
-  const date = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
-  saveHistory({ date, score: S.score, max });
+  // 復習セッションは問題数が少なく満点条件が変わるため、履歴・最高スコアには入れない
+  if (!S.reviewMode) {
+    const now  = new Date();
+    const date = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
+    saveHistory({ date, score: S.score, max });
+  }
 
+  $('result-title').textContent = S.reviewMode
+    ? `まちがい直し ${S.reviewRound}回目の結果`
+    : '結果発表！';
   $('result-score').textContent = `${S.score} / ${max}点`;
   const badge = $('result-badge');
   badge.textContent = cleared ? '💮 クリア！' : '❌ もう少し！';
   badge.className   = `result-badge ${cleared ? 'ok' : 'ng'}`;
+
+  const note = $('result-note');
+  note.textContent = S.reviewMode ? '※まちがい直しの点数は、記録・最高スコアには入りません' : '';
+  note.classList.toggle('hidden', !S.reviewMode);
 
   const rl = $('review-list');
   rl.innerHTML = S.answers.map((a, i) => `
@@ -569,6 +610,21 @@ async function showResult() {
       <span class="rv-eq">${formatEquationLatex(a.q.slope, a.q.intercept)}</span>
       <span class="rv-mark">${a.correct ? (a.hintLevel === 0 ? '◯⭐' : '◯') : '✕'}</span>
     </div>`).join('');
+
+  // 間違いが残っていれば復習ボタンを主導線として出す（全問正解なら出さない）
+  const wrongs     = buildReviewSet(S.answers);
+  const reviewBtn  = $('review-btn');
+  const retryBtn   = $('retry-btn');
+  if (wrongs.length > 0) {
+    reviewBtn.textContent = `🔁 まちがえた${wrongs.length}問をやり直す`;
+    reviewBtn.classList.remove('hidden');
+    retryBtn.textContent  = '✨ 新しい問題に挑戦';
+    retryBtn.className    = 'btn-secondary';
+  } else {
+    reviewBtn.classList.add('hidden');
+    retryBtn.textContent  = '✨ 新しい問題に挑戦';
+    retryBtn.className    = 'btn-primary';
+  }
 
   showScreen('screen-result');
   if (window.MathJax) await MathJax.typesetPromise([rl]);
@@ -656,6 +712,7 @@ function init() {
   $('next-btn').addEventListener('click', next);
   $('hint-btn').addEventListener('click', hint);
   $('retry-btn').addEventListener('click', startQuiz);
+  $('review-btn').addEventListener('click', startReview);
   $('home-btn').addEventListener('click', () => {
     loadHistory(); renderStart(); showScreen('screen-start');
   });
