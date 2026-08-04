@@ -71,7 +71,8 @@ function hasFractionSlope(q) {
   return !Number.isInteger(q.slope);
 }
 
-function generateSession(count = 5) {
+function generateSession(count = 5, course = 'draw') {
+  const normalizedCourse = course === 'read' ? 'read' : 'draw';
   // 基本問題4問から2問は必ず出す
   const selected = shuffled(QUESTION_BANK.slice(0, 4)).slice(0, 2);
   const rest = shuffled(QUESTION_BANK.slice(4));
@@ -83,18 +84,42 @@ function generateSession(count = 5) {
     if (hasFractionSlope(q) && !selected.includes(q)) selected.push(q);
   }
 
+  // 右上がりだけに偏らないよう、負の傾きを最低1問は含める。
+  if (!selected.some(q => q.slope < 0)) {
+    const negative = rest.find(q => q.slope < 0 && !selected.includes(q));
+    if (negative) selected.push(negative);
+  }
+
   for (const q of rest) {
     if (selected.length >= count) break;
     if (!selected.includes(q)) selected.push(q);
   }
 
-  return shuffled(selected.slice(0, count))
-    .map((q, i) => ({ ...q, id: questionId(q), sessionId: i }));
+  const session = selected.slice(0, count);
+  const ordered = normalizedCourse === 'read'
+    ? session.sort((a, b) => {
+        const rank = q => (Number.isInteger(q.slope) ? 0 : 2) + (q.slope < 0 ? 1 : 0);
+        return rank(a) - rank(b);
+      })
+    : shuffled(session);
+
+  return ordered.map((q, i) => {
+    const item = {
+      ...q,
+      course: normalizedCourse,
+      answerKind: normalizedCourse === 'read' ? 'equation' : 'graph',
+      sessionId: i,
+    };
+    item.id = questionId(item);
+    return item;
+  });
 }
 
 // 問題の一意なID。復習モードでの重複防止に使う（値ベースなので出題順に依存しない）
 function questionId(q) {
-  return `q_${q.slope}_${q.intercept}`;
+  const course = q.course === 'read' ? 'read' : 'draw';
+  const kind = q.answerKind || (course === 'read' ? 'equation' : 'graph');
+  return `q_${course}_${kind}_${q.slope}_${q.intercept}`;
 }
 
 // 間違えた問題（不正解＋ギブアップ）だけを抽出する。IDで重複を除く。
@@ -106,7 +131,13 @@ function buildReviewSet(answers) {
     const id = a.q.id || questionId(a.q);
     if (seen.has(id)) continue;
     seen.add(id);
-    out.push({ slope: a.q.slope, intercept: a.q.intercept, id });
+    out.push({
+      slope: a.q.slope,
+      intercept: a.q.intercept,
+      course: a.q.course === 'read' ? 'read' : 'draw',
+      answerKind: a.q.answerKind || (a.q.course === 'read' ? 'equation' : 'graph'),
+      id,
+    });
   }
   return out.map((q, i) => ({ ...q, sessionId: i }));
 }

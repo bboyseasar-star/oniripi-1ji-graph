@@ -20,7 +20,8 @@ const S = {
   submitted:    false,
   correct:      false,
   hintLevel:    0,      // 0〜3
-  highScore:    0,
+  course:       'draw', // draw: かく / read: 読む
+  highScores:   { draw: 0, read: 0 },
   history:      [],
   reviewMode:   false,  // 復習（間違えた問題だけ）セッション中か
   reviewRound:  0,      // 復習の回数（1回目・2回目…）
@@ -181,10 +182,14 @@ function render() {
   drawGrid();
 
   const q = S.questions[S.idx];
+  if (!q) return;
+
+  // 読み取りコースでは、問題の直線自体を最初から固定表示する。
+  if (S.course === 'read') drawLine(q.slope, q.intercept, '#2563eb', 4);
 
   // ヒント1: y切片点
   if (S.hintLevel >= 1) {
-    drawHintDot(0, q.intercept, `(0, ${q.intercept})`);
+    drawHintDot(0, q.intercept, S.course === 'read' ? 'y軸との交点' : `(0, ${q.intercept})`);
   }
   // ヒント2: 傾きに従って「分母ぶん進んだ」もう1つの格子点
   if (S.hintLevel >= 2) {
@@ -193,15 +198,17 @@ function render() {
     const n = f ? f[0] : q.slope;           // 分子
     let gx = d, gy = q.intercept + n;       // (0,b) から右にd・上にn
     if (gy < -(GRID_RANGE - 1) || gy > GRID_RANGE - 1) { gx = -d; gy = q.intercept - n; }
-    drawHintDot(gx, gy, `(${gx}, ${gy})`);
+    drawHintDot(gx, gy, S.course === 'read' ? '2つ目の格子点' : `(${gx}, ${gy})`);
   }
   // ヒント3 or 提出後不正解: 正解ライン
-  if (S.hintLevel >= 3 || (S.submitted && !S.correct)) {
+  if (S.course === 'draw' && (S.hintLevel >= 3 || (S.submitted && !S.correct))) {
     drawLine(q.slope, q.intercept, '#10b981', 3, true);
   }
 
-  drawStudentLine();
-  drawControlPoints();
+  if (S.course === 'draw') {
+    drawStudentLine();
+    drawControlPoints();
+  }
 }
 
 // ─── イベント ─────────────────────────────────────────────────────
@@ -223,7 +230,7 @@ function hitTest(cx, cy) {
 }
 
 function onDown(e) {
-  if (S.submitted) return;
+  if (S.course !== 'draw' || S.submitted) return;
   e.preventDefault();
   const { x, y } = getPos(e);
   const h = hitTest(x, y);
@@ -231,6 +238,7 @@ function onDown(e) {
 }
 
 function onMove(e) {
+  if (S.course !== 'draw') return;
   const { x, y } = getPos(e);
   if (S.dragging !== null) {
     e.preventDefault();
@@ -273,6 +281,7 @@ function numHTML(v) { return `<span class="num-int">${Number(v)}</span>`; }
 
 function updateLineInfo() {
   const el = document.getElementById('current-line-info');
+  if (S.course !== 'draw') { el.textContent = ''; return; }
   const [p1, p2] = S.pts;
   if (p1.x === p2.x) {
     el.innerHTML = '<span class="li-warn">2点のxが同じだと直線を判定できません</span>';
@@ -282,6 +291,181 @@ function updateLineInfo() {
 }
 
 // ─── 判定 ─────────────────────────────────────────────────────────
+function normalizeLatex(latex) {
+  if (!latex) return '';
+  let s = String(latex)
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[\uff0d−ー]/g, '-')
+    .replace(/\uff0b/g, '+')
+    .replace(/\\dfrac/g, '\\frac')
+    .replace(/\\(?:mathrm|mathit|mathbf)\{([xy])\}/g, '$1')
+    .replace(/\\(?:cdot|times)/g, '')
+    .replace(/\\(?:left|right|mleft|mright|displaystyle|textstyle)/g, '')
+    .replace(/\\placeholder\{[^{}]*\}|\\empty|\\blacksquare/g, '')
+    .replace(/\\(?:,|;|!|quad|qquad)/g, '')
+    .replace(/\s+/g, '');
+  while (/^\{[^{}]+\}$/.test(s)) s = s.slice(1, -1);
+  return s;
+}
+
+function parseReducedRational(latex) {
+  let s = normalizeLatex(latex);
+  // MathLiveは入力手順によって係数全体をグループ化して返すことがある。
+  if (s.startsWith('{') && s.endsWith('}')) s = s.slice(1, -1);
+  if (/^[+-]?\d+$/.test(s)) return { valid: true, num: Number(s), den: 1 };
+  const m = s.match(/^([+-]?)\\frac(?:\{([+-]?\d+)\}|([+-]?\d))(?:\{([+-]?\d+)\}|([+-]?\d))$/);
+  if (!m) return { valid: false };
+  let num = Number(m[2] ?? m[3]);
+  let den = Number(m[4] ?? m[5]);
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return { valid: false };
+  if (m[1] === '-') num = -num;
+  if (den < 0) { num = -num; den = -den; }
+  if (Math.abs(den) === 1 || gcd(num, den) !== 1) return { valid: false, unreduced: true };
+  return { valid: true, num, den };
+}
+
+function rationalEquals(parsed, expected) {
+  return parsed.valid && Math.abs(parsed.num / parsed.den - expected) < 1e-10;
+}
+
+function valueLatex(value) {
+  if (Number.isInteger(value)) return String(value);
+  const f = toSimpleFraction(value);
+  if (!f) return String(value);
+  const [num, den] = f;
+  return num < 0 ? `-\\frac{${Math.abs(num)}}{${den}}` : `\\frac{${num}}{${den}}`;
+}
+
+function parsedValueLatex(parsed) {
+  if (!parsed || !parsed.valid) return '\\text{入力形式を確認}';
+  if (parsed.den === 1) return String(parsed.num);
+  return parsed.num < 0
+    ? `-\\frac{${Math.abs(parsed.num)}}{${parsed.den}}`
+    : `\\frac{${parsed.num}}{${parsed.den}}`;
+}
+
+function expectedEquationLatex(q) {
+  let xTerm = '';
+  if (q.slope === 1) xTerm = 'x';
+  else if (q.slope === -1) xTerm = '-x';
+  else xTerm = `${valueLatex(q.slope)}x`;
+  const bTerm = q.intercept > 0
+    ? `+${valueLatex(q.intercept)}`
+    : (q.intercept < 0 ? `-${valueLatex(Math.abs(q.intercept))}` : '');
+  return `y=${xTerm}${bTerm}`;
+}
+
+function parsedEquationLatex(parsed) {
+  if (!parsed || !parsed.valid) return '\\text{入力形式を確認}';
+  const aValue = parsed.a.num / parsed.a.den;
+  let xTerm = '';
+  if (aValue === 1) xTerm = 'x';
+  else if (aValue === -1) xTerm = '-x';
+  else xTerm = `${parsedValueLatex(parsed.a)}x`;
+  const bValue = parsed.b.num / parsed.b.den;
+  const bTerm = bValue > 0
+    ? `+${parsedValueLatex(parsed.b)}`
+    : (bValue < 0 ? `-${parsedValueLatex({ valid: true, num: Math.abs(parsed.b.num), den: parsed.b.den })}` : '');
+  return `y=${xTerm}${bTerm}`;
+}
+
+function parseLinearEquation(latex) {
+  const s = normalizeLatex(latex);
+  if (!s) return { complete: false, valid: false };
+  if (!s.startsWith('y=')) return { complete: true, valid: false, reason: 'missing-y' };
+  const rhs = s.slice(2);
+  if (!rhs || (rhs.match(/x/g) || []).length !== 1) {
+    return { complete: true, valid: false, reason: 'structure' };
+  }
+  const xIndex = rhs.indexOf('x');
+  const coefficientText = rhs.slice(0, xIndex);
+  const tail = rhs.slice(xIndex + 1);
+  let a;
+  if (coefficientText === '') a = { valid: true, num: 1, den: 1 };
+  else if (coefficientText === '-') a = { valid: true, num: -1, den: 1 };
+  else a = parseReducedRational(coefficientText);
+  if (!a.valid) {
+    return { complete: true, valid: false, unreduced: Boolean(a.unreduced), reason: a.unreduced ? 'unreduced' : 'structure' };
+  }
+  if (coefficientText !== '' && coefficientText !== '-'
+      && Math.abs(a.num / a.den) === 1) {
+    return { complete: true, valid: false, reason: 'coefficient-one' };
+  }
+  if (a.num === 0) return { complete: true, valid: false, reason: 'zero-slope' };
+
+  let b = { valid: true, num: 0, den: 1 };
+  if (tail) {
+    if (!/^[+-]/.test(tail)) return { complete: true, valid: false, reason: 'term-order' };
+    b = parseReducedRational(tail);
+    if (!b.valid) {
+      return { complete: true, valid: false, unreduced: Boolean(b.unreduced), reason: b.unreduced ? 'unreduced' : 'structure' };
+    }
+    if (b.num === 0) return { complete: true, valid: false, reason: 'zero-intercept' };
+  }
+  return { complete: true, valid: true, a, b };
+}
+
+function readFormatMessage(parsed) {
+  if (parsed.reason === 'missing-y') return '式は「\\( y= \\)」から書こう。';
+  if (parsed.reason === 'coefficient-one') return '\\( 1x \\)は\\( x \\)、\\( -1x \\)は\\( -x \\)と書くよ。';
+  if (parsed.reason === 'unreduced') return '分数を約分してから式に入れよう。';
+  if (parsed.reason === 'zero-intercept') return '切片が0のとき、\\( +0 \\)や\\( -0 \\)は書かないよ。';
+  if (parsed.reason === 'term-order') return '\\( x \\)の項を先、数だけの項を後に書こう。';
+  if (parsed.reason === 'zero-slope') return '一次関数では、\\( x \\)の係数は0以外になるよ。';
+  return '小数や移項した形ではなく、\\( y=ax+b \\)の形に整理しよう。';
+}
+
+function getReadAnswer() {
+  return $('equation-input').value || '';
+}
+
+function resetReadInputs() {
+  const mf = $('equation-input');
+  if (mf) {
+    try { mf.value = ''; } catch {}
+    mf.removeAttribute('disabled');
+    mf.removeAttribute('read-only');
+    mf.setAttribute('contenteditable', 'true');
+  }
+  document.querySelectorAll('.input-tool-btn').forEach(btn => { btn.disabled = false; });
+}
+
+function lockReadInputs() {
+  if (S.course !== 'read') return;
+  const mf = $('equation-input');
+  if (mf) {
+    mf.setAttribute('disabled', '');
+    mf.setAttribute('read-only', '');
+    mf.setAttribute('contenteditable', 'false');
+  }
+  document.querySelectorAll('.input-tool-btn').forEach(btn => { btn.disabled = true; });
+}
+
+async function safeTypeset(elements, retries = 40) {
+  const targets = (elements || []).filter(Boolean);
+  for (let i = 0; i < retries; i++) {
+    if (window.MathJax && typeof window.MathJax.typesetPromise === 'function') {
+      try {
+        if (typeof window.MathJax.typesetClear === 'function') window.MathJax.typesetClear(targets);
+        await window.MathJax.typesetPromise(targets);
+      } catch (error) { console.warn('MathJax typeset failed:', error); }
+      return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
+
+function judgeRead(q) {
+  const answer = getReadAnswer();
+  const parsed = parseLinearEquation(answer);
+  return {
+    complete: parsed.complete,
+    correct: parsed.valid && rationalEquals(parsed.a, q.slope) && rationalEquals(parsed.b, q.intercept),
+    answer,
+    parsed,
+  };
+}
+
 function judge() {
   const [p1, p2] = S.pts;
   if (p1.x === p2.x) return false;
@@ -300,9 +484,27 @@ function showScreen(id) {
 // ─── localStorage ────────────────────────────────────────────────
 function loadHistory() {
   try {
-    S.history   = JSON.parse(localStorage.getItem(LS_HIST) || '[]');
-    S.highScore = parseInt(localStorage.getItem(LS_HIGH)   || '0');
-  } catch { S.history = []; S.highScore = 0; }
+    const parsedHistory = JSON.parse(localStorage.getItem(LS_HIST) || '[]');
+    S.history = Array.isArray(parsedHistory)
+      ? parsedHistory.filter(Boolean).map(h => ({ ...h, course: h.course === 'read' ? 'read' : 'draw' }))
+      : [];
+
+    const rawHigh = localStorage.getItem(LS_HIGH);
+    let parsedHigh = rawHigh ? JSON.parse(rawHigh) : null;
+    if (typeof parsedHigh === 'number') parsedHigh = { draw: parsedHigh, read: 0 };
+    S.highScores = {
+      draw: Math.max(0, Number(parsedHigh && parsedHigh.draw) || 0),
+      read: Math.max(0, Number(parsedHigh && parsedHigh.read) || 0),
+    };
+    // 履歴を正本とし、キー移行時に最高点が低下しないよう補完する。
+    for (const h of S.history) {
+      const course = h.course === 'read' ? 'read' : 'draw';
+      S.highScores[course] = Math.max(S.highScores[course], Number(h.score) || 0);
+    }
+  } catch {
+    S.history = [];
+    S.highScores = { draw: 0, read: 0 };
+  }
 }
 
 function saveHistory(entry) {
@@ -310,25 +512,27 @@ function saveHistory(entry) {
     S.history.unshift(entry);
     if (S.history.length > 20) S.history = S.history.slice(0, 20);
     localStorage.setItem(LS_HIST, JSON.stringify(S.history));
-    if (entry.score > S.highScore) {
-      S.highScore = entry.score;
-      localStorage.setItem(LS_HIGH, String(S.highScore));
-    }
+    const course = entry.course === 'read' ? 'read' : 'draw';
+    S.highScores[course] = Math.max(S.highScores[course], Number(entry.score) || 0);
+    localStorage.setItem(LS_HIGH, JSON.stringify(S.highScores));
   } catch {}
 }
 
 // ─── スタート画面 ─────────────────────────────────────────────────
 function renderStart() {
-  document.getElementById('high-score').textContent = S.highScore;
+  document.getElementById('high-score-draw').textContent = S.highScores.draw;
+  document.getElementById('high-score-read').textContent = S.highScores.read;
   const el = document.getElementById('history-list');
   if (S.history.length === 0) {
     el.innerHTML = '<p class="no-history">まだ記録なし。チャレンジしよう！</p>';
   } else {
     el.innerHTML = S.history.map(h => {
       const ok = h.score >= h.max * 0.8;
+      const courseLabel = h.course === 'read' ? '👀 読む' : '✏️ かく';
       return `<div class="history-item">
         <span class="h-date">${h.date}</span>
-        <span class="h-score">${h.score}点</span>
+        <span class="h-course">${courseLabel}</span>
+        <span class="h-score">${h.score}/${h.max}点</span>
         <span class="h-badge ${ok ? 'ok' : 'ng'}">${ok ? '💮 クリア' : '❌ もう少し'}</span>
       </div>`;
     }).join('');
@@ -336,10 +540,11 @@ function renderStart() {
 }
 
 // ─── クイズ ───────────────────────────────────────────────────────
-async function startQuiz() {
+async function startQuiz(course = S.course) {
+  S.course = course === 'read' ? 'read' : 'draw';
   S.reviewMode  = false;
   S.reviewRound = 0;
-  S.questions = generateSession(5);
+  S.questions = generateSession(5, S.course);
   S.idx = 0; S.score = 0; S.answers = [];
   updateReviewBadge();
   showScreen('screen-quiz');
@@ -353,6 +558,7 @@ async function startReview() {
   S.reviewRound = (S.reviewMode ? S.reviewRound : 0) + 1;
   S.reviewMode  = true;
   S.questions = set;
+  S.course = set[0].course === 'read' ? 'read' : 'draw';
   S.idx = 0; S.score = 0; S.answers = [];
   updateReviewBadge();
   showScreen('screen-quiz');
@@ -361,6 +567,8 @@ async function startReview() {
 
 // クイズ画面に「復習中」だと分かるバッジを出す
 function updateReviewBadge() {
+  const courseBadge = $('course-badge');
+  if (courseBadge) courseBadge.textContent = S.course === 'read' ? '👀 読む' : '✏️ かく';
   const el = $('review-badge');
   if (!el) return;
   if (S.reviewMode) {
@@ -384,45 +592,116 @@ async function loadQ() {
   $('hint-btn').removeAttribute('disabled');
 
   const q = S.questions[S.idx];
+  const isRead = S.course === 'read';
+  $('question-label').textContent = isRead
+    ? '次のグラフを式で表しなさい'
+    : '次の1次関数のグラフをかきなさい';
+  $('instruction-text').innerHTML = isRead
+    ? '👀 青い直線から傾きと切片を読み取り<br>\\( y = ax + b \\) の形で答えよう！'
+    : '🔵🟣 2つの点をドラッグして<br>グラフを合わせよう！';
+  $('read-answer-area').classList.toggle('hidden', !isRead);
+  $('equation-display').classList.toggle('hidden', isRead);
+  resetReadInputs();
   const total = S.questions.length;
   $('q-counter').textContent   = `Q ${S.idx + 1} / ${total}`;
   $('score-display').textContent = `${S.score}点`;
   $('progress-fill').style.width = `${(S.idx / total) * 100}%`;
 
   const eq = $('equation-display');
-  eq.innerHTML = formatEquationLatex(q.slope, q.intercept);
+  eq.innerHTML = isRead ? '' : formatEquationLatex(q.slope, q.intercept);
 
   updateLineInfo();
   render();
-  if (window.MathJax) await MathJax.typesetPromise([eq]);
+  await safeTypeset([eq, $('instruction-card'), $('read-answer-area')]);
 }
 
 async function submit() {
   if (S.submitted) return;
-  const [p1, p2] = S.pts;
-  if (p1.x === p2.x) {
-    showFB('2点のx座標が同じだよ！どちらかの点を横に動かしてね。', 'warn'); return;
+  const q = S.questions[S.idx];
+  let readResult = null;
+  if (S.course === 'draw') {
+    const [p1, p2] = S.pts;
+    if (p1.x === p2.x) {
+      showFB('2点のx座標が同じだよ！どちらかの点を横に動かしてね。', 'warn'); return;
+    }
+  } else {
+    readResult = judgeRead(q);
+    if (!readResult.complete) {
+      showFB('「y =」を含む式全体を入力してね。', 'warn');
+      return;
+    }
+    if (!readResult.parsed.valid) {
+      showFB(readFormatMessage(readResult.parsed), 'warn');
+      await safeTypeset([$('feedback-box')]);
+      return;
+    }
   }
   S.submitted = true;
-  S.correct   = judge();
-  const q = S.questions[S.idx];
+  S.correct = S.course === 'read' ? readResult.correct : judge();
 
   if (S.correct) {
     const pts = S.hintLevel === 0 ? 20 : (S.hintLevel < 3 ? 15 : 5);
     S.score += pts;
     $('score-display').textContent = `${S.score}点`;
     const star = S.hintLevel === 0 ? '⭐ ノーヒント正解！ ' : '';
-    showFB(`🎉 ${star}正解！(0, ${numHTML(q.intercept)}) を通って、変化の割合 ${slopeHTML(q.slope)} のグラフだね。`, 'ok');
-    pulseLine();
+    if (S.course === 'read') await showReadFeedback(readResult.answer, q, true);
+    else showFB(`🎉 ${star}正解！(0, ${numHTML(q.intercept)}) を通って、変化の割合 ${slopeHTML(q.slope)} のグラフだね。`, 'ok');
+    if (S.course === 'draw') pulseLine();
     fireworks(false);
   } else {
-    showFB(diagnoseError(q), 'ng');
+    if (S.course === 'read') await showReadFeedback(readResult.answer, q, false);
+    else showFB(diagnoseError(q), 'ng');
   }
-  S.answers.push({ correct: S.correct, q, hintLevel: S.hintLevel });
+  S.answers.push({ correct: S.correct, q, hintLevel: S.hintLevel, userAnswer: readResult && readResult.answer });
+  lockReadInputs();
   $('submit-btn').classList.add('hidden');
   $('hint-btn').setAttribute('disabled', 'true');   // 提出後はヒント不可（次問で loadQ が解除）
   $('next-btn').classList.remove('hidden');
   render();
+}
+
+async function showReadFeedback(answer, q, correct, gaveUp = false) {
+  const el = $('feedback-box');
+  el.textContent = '';
+  el.className = `feedback-box ${correct ? 'fb-ok' : 'fb-ng'} read-feedback`;
+  const parsed = parseLinearEquation(answer);
+  let diagnosis = correct
+    ? '🎉 傾きと切片を正しく式にできたね。'
+    : '「y = ax + b」の順で式にしよう。';
+  if (gaveUp) diagnosis = '答えを見たので、この問題はギブアップ（不正解）だよ。';
+  else if (!correct && parsed.unreduced) diagnosis = '分数は約分してから式に入れよう。';
+  else if (!correct && !normalizeLatex(answer).startsWith('y=')) diagnosis = '式は「y =」から書こう。';
+  else if (!correct && !parsed.valid) diagnosis = '小数や移項した形ではなく、「y = ax + b」の形に整理しよう。';
+  else if (!correct && parsed.valid) {
+    const slopeOK = rationalEquals(parsed.a, q.slope);
+    const interceptOK = rationalEquals(parsed.b, q.intercept);
+    if (slopeOK && !interceptOK) {
+      diagnosis = '傾きは正解。切片はグラフが y 軸と交わる点の y 座標だよ。';
+    } else if (!slopeOK && interceptOK) {
+      diagnosis = parsed.a.num / parsed.a.den === -q.slope
+        ? '切片は正解。右上がり・右下がりを見て、傾きの符号を確認しよう。'
+        : '切片は正解。傾きは「上下の変化 ÷ 左右の変化」で求めよう。';
+    } else {
+      diagnosis = 'まず切片を読み、次に2つの格子点から傾きを求めよう。';
+    }
+  }
+  const rows = [
+    ['見直すところ', diagnosis],
+    ['あなたの解答', gaveUp ? '\\( \\text{ギブアップ} \\)' : `\\( ${parsedEquationLatex(parsed)} \\)`],
+    ['正しい答え', `\\( ${expectedEquationLatex(q)} \\)`],
+    ['正しい考え方', `グラフから傾き \\( ${valueLatex(q.slope)} \\)、切片 \\( ${valueLatex(q.intercept)} \\) を読み取り、\\( y = ax + b \\) に当てはめる。`],
+  ];
+  for (const [label, body] of rows) {
+    const row = document.createElement('div');
+    row.className = 'feedback-row';
+    const strong = document.createElement('strong');
+    strong.textContent = label;
+    const value = document.createElement('span');
+    value.textContent = body;
+    row.append(strong, value);
+    el.appendChild(row);
+  }
+  await safeTypeset([el]);
 }
 
 // 誤答の「型」を診断して、どこがズレたかを返す（形成的フィードバック）
@@ -541,13 +820,17 @@ async function hint() {
   S.hintLevel = Math.min(S.hintLevel + 1, 3);
 
   if (S.hintLevel === 1) {
-    appendHintStep(
-      `<b>まず「切片」から</b><br>グラフが y 軸と交わる高さ（<b>y切片</b>）は <b>(0, ${q.intercept})</b>。<br>オレンジの点に、片方の点を重ねよう！`,
-      1, false);
+    if (S.course === 'read') {
+      appendHintStep('<b>まず「切片」から</b><br>グラフが y 軸と交わる点を探し、その高さを目盛りから読もう。', 1, false);
+    } else {
+      appendHintStep(`<b>まず「切片」から</b><br>グラフが y 軸と交わる高さは <b>(0, ${q.intercept})</b>。<br>オレンジの点に、片方の点を重ねよう！`, 1, false);
+    }
   } else if (S.hintLevel === 2) {
     const f = toSimpleFraction(q.slope);
     let step;
-    if (f) {
+    if (S.course === 'read') {
+      step = '<b>傾き ＝ 上下の変化 ÷ 左右の変化</b><br>直線上の2つの格子点を使って、右へ進んだ数と上下に進んだ数を数えよう。';
+    } else if (f) {
       const [n, d] = f;
       const dir = n >= 0 ? '上' : '下';
       step = `<b>変化の割合 ＝ 傾き</b> は ${fracHTML(n, d)} 。<br>切片から <b>右へ ${d}</b> ・ <b>${dir}へ ${Math.abs(n)}</b> 進んだところが、2つ目のオレンジ点だよ。`;
@@ -555,31 +838,59 @@ async function hint() {
       const a = q.slope, dir = a >= 0 ? '上' : '下';
       step = `<b>変化の割合 ＝ 傾き</b> は ${a} 。<br>切片から <b>右へ 1</b> ・ <b>${dir}へ ${Math.abs(a)}</b> 進んだところが、2つ目のオレンジ点だよ。`;
     }
-    appendHintStep(`<b>傾きの分だけ進む</b><br>${step}`, 2, false);
+    appendHintStep(S.course === 'read' ? step : `<b>傾きの分だけ進む</b><br>${step}`, 2, false);
   } else {
     // ヒント3＝答え → スキル通り、その場でギブアップ（誤答）扱い
-    appendHintStep(
-      `緑の点線が正しいグラフ（オレンジ2点を結んだ直線）。<br>「切片 → 傾きの分だけ進む」の順でかけるよ。次はできる！`,
-      3, true);
-    giveUp();
+    const answer = S.course === 'read'
+      ? `答えは \\( ${expectedEquationLatex(q)} \\)。<br>y 軸との交点と、2点間の上下・左右の変化を確認しよう。`
+      : `緑の点線が正しいグラフ（オレンジ2点を結んだ直線）。<br>「切片 → 傾きの分だけ進む」の順でかけるよ。`;
+    appendHintStep(answer, 3, true);
+    await giveUp();
   }
+  await safeTypeset([$('hint-text')]);
   render();
 }
 
 // 答えを見た＝ギブアップ（不正解として記録し、入力を締め切る）
-function giveUp() {
+async function giveUp() {
   if (S.submitted) return;
   S.submitted = true;
   S.correct   = false;
   const q = S.questions[S.idx];
-  S.answers.push({ correct: false, q, hintLevel: 3, gaveUp: true });
-  showFB(`今回は答えを見たので「ギブアップ（不正解）」だよ。でも解き方は分かったね！次の問題でリベンジしよう。`, 'warn');
+  const userAnswer = S.course === 'read' ? getReadAnswer() : null;
+  S.answers.push({ correct: false, q, hintLevel: 3, gaveUp: true, userAnswer });
+  if (S.course === 'read') await showReadFeedback(userAnswer, q, false, true);
+  else showFB(`今回は答えを見たので「ギブアップ（不正解）」だよ。でも解き方は分かったね！次の問題でリベンジしよう。`, 'warn');
+  lockReadInputs();
   $('submit-btn').classList.add('hidden');
   $('hint-btn').setAttribute('disabled', 'true');
   $('next-btn').classList.remove('hidden');
 }
 
 // ─── 結果画面 ─────────────────────────────────────────────────────
+function buildReviewItem(answer, index) {
+  const item = document.createElement('div');
+  item.className = `review-item ${answer.correct ? 'ok' : 'ng'}`;
+  const num = document.createElement('span');
+  num.className = 'rv-num';
+  num.textContent = `Q${index + 1}`;
+  const body = document.createElement('span');
+  body.className = 'rv-eq';
+  if (answer.q.course === 'read') {
+    const mine = answer.gaveUp
+      ? '\\text{ギブアップ}'
+      : parsedEquationLatex(parseLinearEquation(answer.userAnswer));
+    body.textContent = `あなた: \\( ${mine} \\)  正答: \\( ${expectedEquationLatex(answer.q)} \\)`;
+  } else {
+    body.textContent = formatEquationLatex(answer.q.slope, answer.q.intercept);
+  }
+  const mark = document.createElement('span');
+  mark.className = 'rv-mark';
+  mark.textContent = answer.correct ? (answer.hintLevel === 0 ? '◯⭐' : '◯') : '✕';
+  item.append(num, body, mark);
+  return item;
+}
+
 async function showResult() {
   const max     = S.questions.length * 20;
   const cleared = S.score >= max * 0.8;
@@ -588,7 +899,7 @@ async function showResult() {
   if (!S.reviewMode) {
     const now  = new Date();
     const date = `${now.getMonth()+1}/${now.getDate()} ${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
-    saveHistory({ date, score: S.score, max });
+    saveHistory({ date, course: S.course, score: S.score, max });
   }
 
   $('result-title').textContent = S.reviewMode
@@ -604,12 +915,8 @@ async function showResult() {
   note.classList.toggle('hidden', !S.reviewMode);
 
   const rl = $('review-list');
-  rl.innerHTML = S.answers.map((a, i) => `
-    <div class="review-item ${a.correct ? 'ok' : 'ng'}">
-      <span class="rv-num">Q${i+1}</span>
-      <span class="rv-eq">${formatEquationLatex(a.q.slope, a.q.intercept)}</span>
-      <span class="rv-mark">${a.correct ? (a.hintLevel === 0 ? '◯⭐' : '◯') : '✕'}</span>
-    </div>`).join('');
+  rl.textContent = '';
+  S.answers.forEach((a, i) => rl.appendChild(buildReviewItem(a, i)));
 
   // 間違いが残っていれば復習ボタンを主導線として出す（全問正解なら出さない）
   const wrongs     = buildReviewSet(S.answers);
@@ -627,7 +934,7 @@ async function showResult() {
   }
 
   showScreen('screen-result');
-  if (window.MathJax) await MathJax.typesetPromise([rl]);
+  await safeTypeset([rl]);
   if (cleared) fireworks(true);
 }
 
@@ -678,6 +985,49 @@ function pulsePoint(idx) {
 // ─── 初期化 ───────────────────────────────────────────────────────
 function $(id) { return document.getElementById(id); }
 
+function toHalfWidth(value) {
+  return String(value || '')
+    .replace(/[\uff10-\uff19\uff21-\uff3a\uff41-\uff5a]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/[\uff0d−ー]/g, '-').replace(/\uff0b/g, '+');
+}
+
+function forceHalfWidthInput(id) {
+  const mf = $(id);
+  if (!mf) return;
+  mf.setAttribute('inputmode', 'latin');
+  let converting = false;
+  const convert = () => {
+    if (converting) return;
+    const before = mf.value || '', after = toHalfWidth(before);
+    if (after === before) return;
+    converting = true;
+    try { mf.value = after; } finally { converting = false; }
+  };
+  mf.addEventListener('input', convert);
+  mf.addEventListener('compositionend', convert);
+  mf.addEventListener('focus', () => {
+    mf.setAttribute('inputmode', 'latin');
+    const textarea = mf.shadowRoot && mf.shadowRoot.querySelector('textarea');
+    if (textarea) {
+      textarea.setAttribute('inputmode', 'latin');
+      textarea.setAttribute('autocorrect', 'off');
+      textarea.setAttribute('lang', 'en');
+    }
+  });
+}
+
+function insertReadToken(kind) {
+  const mf = $('equation-input');
+  if (!mf || S.submitted) return;
+  const tokens = { fraction: '\\frac{#?}{#?}', x: 'x', y: 'y', equals: '=' };
+  const latex = tokens[kind];
+  if (!latex) return;
+  try { mf.focus(); } catch {}
+  const options = kind === 'fraction' ? { selectionMode: 'placeholder' } : { selectionMode: 'after' };
+  try { if (mf.insert(latex, options)) return; } catch {}
+  try { mf.executeCommand(['insert', latex, options]); } catch {}
+}
+
 function init() {
   canvas = $('graph-canvas');
   ctx    = canvas.getContext('2d');
@@ -696,7 +1046,8 @@ function init() {
   canvas.addEventListener('touchmove',  onMove, { passive: false });
   canvas.addEventListener('touchend',   onUp);
 
-  $('start-btn').addEventListener('click', startQuiz);
+  $('start-draw-btn').addEventListener('click', () => startQuiz('draw'));
+  $('start-read-btn').addEventListener('click', () => startQuiz('read'));
   $('reset-btn').addEventListener('click', () => {
     showConfirm({ title: '履歴を消す？', message: '学習履歴と最高スコアを消すよ。', okText: '消す', danger: true }).then(ok => {
       if (!ok) return;
@@ -704,17 +1055,21 @@ function init() {
         localStorage.removeItem(LS_HIST);
         localStorage.removeItem(LS_HIGH);
       } catch {}
-      S.history = []; S.highScore = 0;
+      S.history = []; S.highScores = { draw: 0, read: 0 };
       renderStart();
     });
   });
   $('submit-btn').addEventListener('click', submit);
   $('next-btn').addEventListener('click', next);
   $('hint-btn').addEventListener('click', hint);
-  $('retry-btn').addEventListener('click', startQuiz);
+  $('retry-btn').addEventListener('click', () => startQuiz(S.course));
   $('review-btn').addEventListener('click', startReview);
   $('home-btn').addEventListener('click', () => {
     loadHistory(); renderStart(); showScreen('screen-start');
+  });
+  forceHalfWidthInput('equation-input');
+  document.querySelectorAll('.input-tool-btn').forEach(btn => {
+    btn.addEventListener('click', () => insertReadToken(btn.dataset.insert));
   });
 
   loadHistory();

@@ -15,7 +15,7 @@
   </script>
   <script id="MathJax-script" async
     src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-  <link rel="stylesheet" href="style.css?v=20260721-3">
+  <link rel="stylesheet" href="style.css?v=20260804-2">
 </head>
 <body>
 
@@ -24,12 +24,20 @@
     <div class="start-card">
       <div class="app-logo emoji-icon">👹</div>
       <h1 class="app-title">1次関数のグラフマスター</h1>
-      <p class="app-subtitle">グラフを自在にかこう</p>
+      <p class="app-subtitle">グラフをかいて、式で表そう</p>
 
-      <div class="highscore-box">
-        <span>👑 最高スコア</span>
-        <strong id="high-score">--</strong>
-        <span>点</span>
+      <div class="course-select" aria-label="コース選択">
+        <button id="start-draw-btn" class="course-btn course-btn--draw">✏️ グラフをかく</button>
+        <button id="start-read-btn" class="course-btn course-btn--read">👀 グラフを読む</button>
+      </div>
+
+      <div class="highscore-grid">
+        <div class="highscore-box">
+          <span>👑 かく</span><strong id="high-score-draw">0</strong><span>点</span>
+        </div>
+        <div class="highscore-box">
+          <span>👑 読む</span><strong id="high-score-read">0</strong><span>点</span>
+        </div>
       </div>
 
       <div class="history-box">
@@ -42,8 +50,6 @@
         </div>
       </div>
 
-      <button id="start-btn" class="btn-primary lg">▶ スタート！</button>
-
       <p class="legal-links"><a href="legal.html">このアプリについて</a></p>
     </div>
   </div>
@@ -52,7 +58,7 @@
   <div id="screen-quiz" class="screen">
 
     <header class="quiz-header">
-      <div class="header-brand"><span class="emoji-icon">👹</span> 1次関数のグラフマスター<span id="review-badge" class="review-badge hidden"></span></div>
+      <div class="header-brand"><span class="emoji-icon">👹</span> 1次関数<span id="course-badge" class="course-badge"></span><span id="review-badge" class="review-badge hidden"></span></div>
       <div class="header-progress">
         <span id="q-counter">Q 1 / 5</span>
         <div class="progress-bar">
@@ -67,16 +73,30 @@
       <!-- 左パネル -->
       <section class="left-panel">
         <div class="question-card">
-          <p class="question-label">次の1次関数のグラフをかきなさい</p>
+          <p id="question-label" class="question-label">次の1次関数のグラフをかきなさい</p>
           <div id="equation-display" class="equation-display"></div>
         </div>
 
-        <div class="instruction-card">
-          <p>🔵🟣 2つの点をドラッグして<br>グラフを合わせよう！</p>
+        <div id="instruction-card" class="instruction-card">
+          <p id="instruction-text">🔵🟣 2つの点をドラッグして<br>グラフを合わせよう！</p>
           <div id="current-line-info" class="line-info"></div>
         </div>
 
-        <div id="feedback-box" class="feedback-box hidden"></div>
+        <div id="read-answer-area" class="read-answer-area hidden">
+          <label class="read-field-label" for="equation-input">式</label>
+          <div class="read-input-row">
+            <div class="math-field-wrap"><math-field id="equation-input" virtual-keyboard-mode="off" inputmode="latin" aria-label="一次関数の式"></math-field></div>
+          </div>
+          <div class="input-tools" aria-label="入力補助">
+            <button class="input-tool-btn tex2jax_process" type="button" data-insert="y" aria-label="yを入力"><span>\( y \)</span></button>
+            <button class="input-tool-btn" type="button" data-insert="equals" aria-label="等号を入力">=</button>
+            <button class="input-tool-btn tex2jax_process" type="button" data-insert="x" aria-label="xを入力"><span>\( x \)</span></button>
+            <button class="input-tool-btn" type="button" data-insert="fraction" aria-label="分数を入力"><span class="frac"><span class="frac-n">□</span><span class="frac-d">□</span></span></button>
+          </div>
+          <p class="input-note">※「\( y= \)」から、整数か約分した分数で入力。<br>\( 1x \)は\( x \)、\( -1x \)は\( -x \)。</p>
+        </div>
+
+        <div id="feedback-box" class="feedback-box hidden" role="status" aria-live="polite"></div>
 
         <div class="hint-area">
           <div class="hint-controls">
@@ -90,7 +110,7 @@
 
       <!-- キャンバスパネル -->
       <section class="right-panel">
-        <canvas id="graph-canvas" width="480" height="480"></canvas>
+        <canvas id="graph-canvas" width="480" height="480" role="img" aria-label="座標平面に表された一次関数のグラフ"></canvas>
       </section>
 
     </main>
@@ -134,7 +154,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-  <script src="questions.js?v=20260721-3"></script>
-  <script src="main.js?v=20260721-3"></script>
+  <script src="https://unpkg.com/mathlive@0.98.4/dist/mathlive.min.js"></script>
+  <script src="questions.js?v=20260804-2"></script>
+  <script src="main.js?v=20260804-4"></script>
 </body>
 </html>

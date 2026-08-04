@@ -78,6 +78,16 @@ html, body {
 .app-title    { font-size: clamp(1.7rem, 6vw, 2.4rem); font-weight: 900; color: var(--brand-600); letter-spacing: -.02em; line-height: 1.1; white-space: nowrap; }
 .app-subtitle { color: var(--ink-2); font-size: .8rem; }
 
+.course-select { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); width: 100%; }
+.course-btn {
+  min-height: 52px; border: 2px solid var(--brand-500); border-radius: var(--r-md);
+  background: #fff; color: var(--brand-700); font: 700 .92rem var(--font-ja); cursor: pointer;
+  transition: transform .14s var(--ease), background .14s ease;
+}
+.course-btn:hover { background: #f3f5fe; transform: translateY(-2px); }
+.course-btn--read { background: #eef7ff; border-color: #60a5fa; color: #1d4ed8; }
+.highscore-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); width: 100%; }
+
 .highscore-box {
   display: flex; align-items: center; gap: var(--sp-2);
   background: linear-gradient(135deg,#fff7e3,#fef0cf);
@@ -85,6 +95,7 @@ html, body {
   border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-5);
   font-size: .9rem; color: var(--ink-2);
 }
+.highscore-grid .highscore-box { justify-content: center; padding-inline: var(--sp-3); }
 .highscore-box strong { font-size: 1.6rem; font-weight: 900; color: #c9821a; }
 
 .history-box { width: 100%; border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
@@ -100,6 +111,7 @@ html, body {
 }
 .history-item:last-child { border-bottom: none; }
 .h-date   { color: var(--ink-2); flex: 1; }
+.h-course { color: var(--brand-600); font-weight: 700; white-space: nowrap; }
 .h-score  { font-weight: 700; }
 .h-badge.ok { color: var(--ok); font-weight: 700; }
 .h-badge.ng { color: var(--ng); font-weight: 700; }
@@ -112,6 +124,10 @@ html, body {
   display: flex; align-items: center; padding: 0 var(--sp-5); gap: var(--sp-4);
 }
 .header-brand { font-weight: 900; font-size: 1.05rem; color: var(--brand-600); min-width: 78px; white-space: nowrap; flex-shrink: 0; }
+.course-badge {
+  display: inline-block; margin-left: var(--sp-2); padding: 2px 9px;
+  border-radius: var(--r-pill); background: #eef2ff; color: var(--brand-700); font-size: .7rem;
+}
 .header-progress { flex: 1; display: flex; align-items: center; gap: var(--sp-3); }
 #q-counter { font-size: .88rem; font-weight: 700; white-space: nowrap; color: var(--ink-2); }
 .progress-bar { flex: 1; height: 9px; background: var(--line); border-radius: var(--r-pill); overflow: hidden; }
@@ -137,6 +153,7 @@ html, body {
   min-height: 52px; display: flex; align-items: center; justify-content: center;
   letter-spacing: .01em;
 }
+.equation-display.hidden { display: none; }
 .instruction-card {
   background: #f3f5fe; border-radius: var(--r-md);
   padding: var(--sp-3); font-size: .84rem; line-height: 1.7; color: var(--ink-2);
@@ -144,6 +161,29 @@ html, body {
 }
 .line-info { margin-top: var(--sp-1); font-size: .82rem; color: var(--brand-600); font-weight: 700; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
 .line-info .li-warn { color: var(--ng); font-weight: 700; }
+
+.read-answer-area {
+  background: var(--surface); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3);
+  box-shadow: var(--sh-1); flex-shrink: 0;
+}
+.read-answer-area.hidden { display: none; }
+.read-field-label { display: block; margin-bottom: 4px; font-size: .78rem; color: var(--ink-2); font-weight: 700; }
+.read-input-row { display: flex; align-items: stretch; gap: var(--sp-2); min-width: 0; }
+.math-field-wrap {
+  flex: 1; min-width: 0; border: 2px solid #cbd5e1; border-radius: var(--r-sm); background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+}
+.math-field-wrap:focus-within { border-color: var(--brand-600); box-shadow: 0 0 0 3px rgba(99,102,241,.14); }
+math-field { display: block; width: 100%; min-height: 44px; border: 0; padding: 4px 8px; font-size: 1.2rem; background: transparent; }
+math-field::part(menu-toggle), math-field::part(virtual-keyboard-toggle) { display: none; }
+.input-tools { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+.input-tool-btn {
+  min-width: 44px; min-height: 44px; padding: 4px 10px; border: 1.5px solid var(--brand-500);
+  border-radius: var(--r-sm); background: #f3f5fe; color: var(--brand-700);
+  font: 700 1rem var(--font-num); cursor: pointer;
+}
+.input-tool-btn:disabled { opacity: .45; cursor: not-allowed; }
+.input-note { margin-top: 3px; text-align: right; color: var(--ink-3); font-size: .66rem; }
 
 /* 上下に並んだ分数（スラッシュ表記をやめる）*/
 .frac {
@@ -166,6 +206,12 @@ html, body {
 .fb-ok   { background: var(--ok-bg);   color: var(--ok);   border: 1.5px solid var(--ok-line); }
 .fb-ng   { background: var(--ng-bg);   color: var(--ng);   border: 1.5px solid var(--ng-line); }
 .fb-warn { background: var(--warn-bg); color: var(--warn); border: 1.5px solid var(--warn-line); }
+.read-feedback {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: var(--sp-2); font-size: .78rem; line-height: 1.35;
+}
+.feedback-row { display: grid; grid-template-columns: 7em 1fr; gap: 5px; align-items: start; }
+.feedback-row strong { font-size: .74rem; }
 
 /* ヒントが増えても問題・説明カードの位置は動かさず、この領域内だけで内部スクロール */
 .hint-area { display: flex; flex-direction: column; gap: var(--sp-2); min-height: 0; flex: 1 1 auto; }
@@ -308,7 +354,7 @@ html, body {
 
 .btn-ghost-sm {
   background: none; border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: var(--sp-1) var(--sp-3); min-height: 32px;
+  padding: var(--sp-1) var(--sp-3); min-height: 44px;
   font-size: .76rem; color: var(--ink-2); cursor: pointer; font-family: var(--font-ja);
 }
 .btn-ghost-sm:hover { background: #f7f9fe; }

@@ -37,6 +37,7 @@ Copyright © 2026 bboyseasar.
 このアプリは、以下の第三者コンポーネントを各ライセンスに従って利用しています。いずれもネットワーク経由で読み込んでおり、本リポジトリには同梱していません。これらに本リポジトリ独自部分のライセンスは適用されません。
 
 - [MathJax 3](https://github.com/mathjax/MathJax) — Apache License 2.0
+- [MathLive 0.98.4](https://github.com/arnog/mathlive) — MIT License
 - [canvas-confetti 1.6.0](https://github.com/catdad/canvas-confetti) — ISC License
 - [BIZ UDPGothic](https://github.com/google/fonts/tree/main/ofl/bizudpgothic) — SIL Open Font License 1.1
 - [Outfit](https://github.com/google/fonts/tree/main/ofl/outfit) — SIL Open Font License 1.1
@@ -50,7 +51,7 @@ Copyright © 2026 bboyseasar.
 - 氏名、メールアドレスその他の個人情報を入力・収集する機能はありません。
 - 得点と学習履歴は、利用者のブラウザ内の`localStorage`にのみ保存され、アプリ運営者へ送信されません。スタート画面の「リセット」で削除できます。
 - 「まちがい直し（復習モード）」の点数は、学習履歴および最高スコアには保存されません。出題数が通常のセッションと異なるため、記録上は区別しています。
-- 数式表示、フォントおよび演出の読み込みのため、利用者のブラウザからGoogle Fonts（`fonts.googleapis.com`、`fonts.gstatic.com`）およびjsDelivr（`cdn.jsdelivr.net`）へ接続します。その際、通常のWebアクセスと同様に、IPアドレスやブラウザ情報等が各配信事業者に伝わる場合があります。
+- 数式表示・数式入力・フォント・演出の読み込みのため、利用者のブラウザからGoogle Fonts（`fonts.googleapis.com`、`fonts.gstatic.com`）、jsDelivr（`cdn.jsdelivr.net`）およびunpkg（`unpkg.com`）へ接続します。その際、通常のWebアクセスと同様に、IPアドレスやブラウザ情報等が各配信事業者に伝わる場合があります。
 - 学習結果を収集する解析ツールや、外部APIへの送信は使用していません。
 
 ## 免責
